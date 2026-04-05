@@ -2,33 +2,28 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const nodemailer = require('nodemailer');
+const axios = require('axios');
 const User = require('../models/User');
 
-// Send OTP email
 async function sendOTP(email, otp) {
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
+  await axios.post('https://api.brevo.com/v3/smtp/email', {
+    sender: { name: 'NewLife Chat', email: '1209education@gmail.com' },
+    to: [{ email }],
+    subject: 'NewLife - Email Verification',
+    textContent: `Your OTP is: ${otp}`
+  }, {
+    headers: {
+      'api-key': process.env.BREVO_API_KEY,
+      'Content-Type': 'application/json'
     }
-  });
-  await transporter.sendMail({
-    from: process.env.EMAIL_USER,
-    to: email,
-    subject: 'ChatApp - Email Verification',
-    text: `Your OTP is: ${otp}`
   });
 }
 
-// Register
 router.post('/register', async (req, res) => {
   try {
     const { name, email, password } = req.body;
     const existing = await User.findOne({ email });
     if (existing) return res.status(400).json({ message: 'Email already exists' });
-
     const hashed = await bcrypt.hash(password, 10);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const user = new User({ name, email, password: hashed, otp });
@@ -40,7 +35,6 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Verify OTP
 router.post('/verify', async (req, res) => {
   try {
     const { email, otp } = req.body;
@@ -55,7 +49,6 @@ router.post('/verify', async (req, res) => {
   }
 });
 
-// Login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -71,7 +64,6 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// Get all users
 router.get('/users', async (req, res) => {
   try {
     const users = await User.find({ isVerified: true }).select('-password -otp');
